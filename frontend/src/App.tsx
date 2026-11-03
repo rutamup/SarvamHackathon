@@ -8,7 +8,7 @@ import { PuneMap } from './PuneMap';
 import { Leaderboard } from './Leaderboard';
 
 export function App() {
-  const [lang, setLang] = useState<LanguageCode>('mr-IN');
+  const [lang, setLang] = useState<LanguageCode>('en-IN');
   const [view, setView] = useState<'home' | 'report' | 'status' | 'officer' | 'map' | 'leaderboard'>('home');
   const [selectedComplaintId, setSelectedComplaintId] = useState('');
   const [showLangMenu, setShowLangMenu] = useState(false);

@@ -49,7 +49,7 @@ class AIAnalysisResult(BaseModel):
 
 class ComplaintCreateRequest(BaseModel):
     problem_text: str
-    language_code: str = "mr-IN"
+    language_code: str = "en-IN"
     village_city: Optional[str] = "Pune"
     area_landmark: Optional[str] = None
     latitude: Optional[float] = None
@@ -66,7 +66,7 @@ class OfficerStatusUpdateRequest(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str
-    target_language_code: str = "mr-IN"
+    target_language_code: str = "en-IN"
 
 class TranslateRequest(BaseModel):
     text: str
