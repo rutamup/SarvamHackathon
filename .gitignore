@@ -24,7 +24,13 @@ __pycache__/
 # Build outputs
 dist/
 build/
+dev-dist/
 .cache/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
 
 # Uploads and temporary media
 uploads/

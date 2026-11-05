@@ -22,8 +22,16 @@ def run_servers():
 
     # 1. Start Backend
     print("Starting FastAPI Backend on http://127.0.0.1:8000 ...")
+    py_exec = sys.executable
+    venv_py_unix = os.path.join(ROOT_DIR, ".venv", "bin", "python")
+    venv_py_win = os.path.join(ROOT_DIR, ".venv", "Scripts", "python.exe")
+    if os.path.exists(venv_py_unix):
+        py_exec = venv_py_unix
+    elif os.path.exists(venv_py_win):
+        py_exec = venv_py_win
+
     backend_proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"],
+        [py_exec, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"],
         cwd=BACKEND_DIR,
         shell=(os.name == "nt")
     )

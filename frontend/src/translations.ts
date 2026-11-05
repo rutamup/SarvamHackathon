@@ -40,7 +40,10 @@ export const TRANSLATIONS = {
     mockAiNotice: 'MOCK AI RESPONSE (API Key अनुपलब्ध)',
     privacyNotice: 'नागरिकांची गोपनीयता: आपले नाव सुरक्षित राहील आणि GPS अंदाजे १०० मीटर अंतरावर संरक्षित केले जाते.',
     viewMap: 'पुणे तक्रार नकाशा',
-    viewLeaderboard: 'वॉर्ड कामगिरी'
+    viewLeaderboard: 'वॉर्ड कामगिरी',
+    offlineMessage: 'आपण ऑफलाइन आहात. तक्रार नोंदवण्यासाठी किंवा अद्ययावत करण्यासाठी इंटरनेट आवश्यक आहे.',
+    installApp: 'ॲप इन्स्टॉल करा',
+    installAppSub: 'द्रुत प्रवेशासाठी होम स्क्रीनवर JanSuno जोडा'
   },
   'hi-IN': {
     appName: 'जनसुनो',
@@ -81,7 +84,10 @@ export const TRANSLATIONS = {
     mockAiNotice: 'MOCK AI RESPONSE (API Key अनुपलब्ध)',
     privacyNotice: 'नागरिक गोपनीयता: आपकी पहचान सुरक्षित है और GPS लगभग १०० मीटर सुरक्षित रहता है।',
     viewMap: 'पुणे शिकायत मानचित्र',
-    viewLeaderboard: 'वार्ड प्रदर्शन'
+    viewLeaderboard: 'वार्ड प्रदर्शन',
+    offlineMessage: 'आप अभी ऑफ़लाइन हैं। शिकायत दर्ज करने या अपडेट देखने के लिए इंटरनेट आवश्यक है।',
+    installApp: 'ऐप इंस्टॉल करें',
+    installAppSub: 'त्वरित उपयोग के लिए होम स्क्रीन पर JanSuno जोड़ें'
   },
   'en-IN': {
     appName: 'JanSuno',
@@ -122,7 +128,10 @@ export const TRANSLATIONS = {
     mockAiNotice: 'MOCK AI RESPONSE (Sarvam Key not set)',
     privacyNotice: 'Citizen Privacy: Only first name or Anonymous is shown; GPS is rounded to ~100m; photos are visible strictly to verified municipal officers.',
     viewMap: 'Pune City Map',
-    viewLeaderboard: 'Ward Leaderboard'
+    viewLeaderboard: 'Ward Leaderboard',
+    offlineMessage: 'You are currently offline. An internet connection is required to submit or track complaints.',
+    installApp: 'Install App',
+    installAppSub: 'Add JanSuno to home screen for quick access'
   }
 };
 

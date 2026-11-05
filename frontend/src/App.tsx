@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Mic, Search, Globe, ShieldCheck, Map, Trophy, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mic, Search, Globe, ShieldCheck, Map, Trophy, ChevronRight, Download, WifiOff } from 'lucide-react';
 import { LanguageCode, TRANSLATIONS } from './translations';
 import { ReportFlow } from './ReportFlow';
 import { StatusTracking } from './StatusTracking';
@@ -7,11 +7,73 @@ import { OfficerDashboard } from './OfficerDashboard';
 import { PuneMap } from './PuneMap';
 import { Leaderboard } from './Leaderboard';
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 export function App() {
   const [lang, setLang] = useState<LanguageCode>('en-IN');
   const [view, setView] = useState<'home' | 'report' | 'status' | 'officer' | 'map' | 'leaderboard'>('home');
   const [selectedComplaintId, setSelectedComplaintId] = useState('');
   const [showLangMenu, setShowLangMenu] = useState(false);
+
+  // Network offline state
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  // PWA install prompt state
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+  });
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setIsStandalone(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      await deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult.outcome === 'accepted') {
+        setIsStandalone(true);
+      }
+      setDeferredPrompt(null);
+    } else {
+      alert(
+        lang === 'mr-IN'
+          ? "JanSuno इन्स्टॉल करण्यासाठी: आपल्या ब्राउझर मेनूमध्ये (⋮ किंवा शेअर) जा आणि 'Install app' किंवा 'Add to Home screen' निवडा."
+          : lang === 'hi-IN'
+          ? "JanSuno इंस्टॉल करने के लिए: अपने ब्राउज़र मेनू (⋮ या शेयर) पर जाएं और 'Install app' या 'Add to Home screen' चुनें।"
+          : "To install JanSuno: Open your browser menu (⋮ or Share) and select 'Install app' or 'Add to Home Screen'."
+      );
+    }
+  };
 
   const t = TRANSLATIONS[lang];
 
@@ -21,24 +83,37 @@ export function App() {
     setView('status');
   };
 
-  if (view === 'report') {
-    return <ReportFlow lang={lang} onBack={() => setView('home')} onTrackId={handleTrackId} />;
-  }
+  const renderView = () => {
+    switch (view) {
+      case 'report':
+        return <ReportFlow lang={lang} onBack={() => setView('home')} onTrackId={handleTrackId} />;
+      case 'status':
+        return <StatusTracking lang={lang} initialId={selectedComplaintId} onBack={() => setView('home')} />;
+      case 'officer':
+        return <OfficerDashboard onBack={() => setView('home')} />;
+      case 'map':
+        return <PuneMap onBack={() => setView('home')} onSelectComplaint={handleTrackId} />;
+      case 'leaderboard':
+        return <Leaderboard onBack={() => setView('home')} />;
+      default:
+        return null;
+    }
+  };
 
-  if (view === 'status') {
-    return <StatusTracking lang={lang} initialId={selectedComplaintId} onBack={() => setView('home')} />;
-  }
-
-  if (view === 'officer') {
-    return <OfficerDashboard onBack={() => setView('home')} />;
-  }
-
-  if (view === 'map') {
-    return <PuneMap onBack={() => setView('home')} onSelectComplaint={handleTrackId} />;
-  }
-
-  if (view === 'leaderboard') {
-    return <Leaderboard onBack={() => setView('home')} />;
+  if (view !== 'home') {
+    return (
+      <div className="min-h-screen bg-[#FAF9F5]">
+        {!isOnline && (
+          <div className="max-w-lg mx-auto p-3">
+            <div className="bg-amber-500 text-white p-3 rounded-2xl shadow-sm flex items-center gap-3 text-xs font-semibold">
+              <WifiOff className="w-5 h-5 shrink-0" />
+              <span>{t.offlineMessage}</span>
+            </div>
+          </div>
+        )}
+        {renderView()}
+      </div>
+    );
   }
 
   return (
@@ -94,10 +169,25 @@ export function App() {
         </div>
       </header>
 
-      {/* Main Hero & 3 Big Options */}
-      <main className="my-auto py-4 space-y-4">
+      {/* Friendly Offline Notice Banner */}
+      {!isOnline && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 p-3.5 rounded-2xl shadow-xs mb-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-amber-200 flex items-center justify-center shrink-0 text-amber-800">
+            <WifiOff className="w-4 h-4" />
+          </div>
+          <div className="text-xs leading-snug">
+            <span className="font-bold block text-amber-950">
+              {lang === 'mr-IN' ? 'इंटरनेट कनेक्शन नाही' : lang === 'hi-IN' ? 'इंटरनेट कनेक्शन नहीं है' : 'No Internet Connection'}
+            </span>
+            <span>{t.offlineMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Main Hero & Big Options */}
+      <main className="my-auto py-3 space-y-3.5">
         {/* Banner */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-4">
           <h2 className="text-3xl font-black text-stone-900 tracking-tight leading-snug">
             {t.tagline}
           </h2>
@@ -148,7 +238,33 @@ export function App() {
           <ChevronRight className="w-6 h-6 text-stone-400 group-hover:translate-x-1 transition-transform" />
         </button>
 
-        {/* 3. Change Language */}
+        {/* 3. Install App Button (Visible when not in standalone mode) */}
+        {!isStandalone && (
+          <button
+            onClick={handleInstallClick}
+            className="w-full bg-emerald-50/80 hover:bg-emerald-100/80 border border-emerald-200 active:scale-[0.99] text-emerald-950 p-4 rounded-3xl shadow-2xs transition-all text-left flex items-center justify-between group min-h-[76px]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-700 flex items-center justify-center text-white shrink-0 shadow-xs">
+                <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              </div>
+              <div>
+                <span className="text-base font-bold block leading-tight text-emerald-900">
+                  {t.installApp}
+                </span>
+                <span className="text-xs text-emerald-800/80 font-medium block">
+                  {t.installAppSub}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold bg-emerald-700 text-white px-2 py-0.5 rounded-full">PWA</span>
+              <ChevronRight className="w-5 h-5 text-emerald-700 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+        )}
+
+        {/* 4. Change Language */}
         <button
           onClick={() => setShowLangMenu(true)}
           className="w-full bg-white hover:bg-stone-50 border border-stone-200 active:scale-[0.99] text-stone-900 p-4 rounded-3xl shadow-2xs transition-all text-left flex items-center justify-between group min-h-[72px]"
@@ -170,7 +286,7 @@ export function App() {
         </button>
 
         {/* P1 Shortcuts: Map & Leaderboard */}
-        <div className="grid grid-cols-2 gap-3 pt-2">
+        <div className="grid grid-cols-2 gap-3 pt-1">
           <button
             onClick={() => setView('map')}
             className="flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 p-3.5 rounded-2xl text-xs font-bold transition-colors min-h-[48px]"
@@ -189,7 +305,7 @@ export function App() {
       </main>
 
       {/* Footer / Officer Login Shortcut */}
-      <footer className="pt-4 border-t border-stone-200/80 text-center space-y-3">
+      <footer className="pt-3 border-t border-stone-200/80 text-center space-y-2.5">
         <p className="text-[11px] text-stone-500 max-w-xs mx-auto">
           {t.privacyNotice}
         </p>
@@ -208,4 +324,3 @@ export function App() {
 }
 
 export default App;
-
