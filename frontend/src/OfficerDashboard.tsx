@@ -129,9 +129,11 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ onBack }) =>
     return (
       <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white p-8 rounded-3xl border border-stone-200 shadow-sm text-center">
-          <div className="w-14 h-14 bg-emerald-100 text-emerald-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-7 h-7" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="JanSuno"
+            className="h-20 w-auto mx-auto mb-3 object-contain"
+          />
           <h2 className="text-2xl font-black text-stone-900">Municipal Officer Portal</h2>
           <p className="text-stone-600 text-sm mt-1 mb-6">Enter official password to access PMC operations console</p>
 
@@ -186,7 +188,12 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ onBack }) =>
             >
               <ArrowLeft className="w-4 h-4 mr-1" /> Citizen View
             </button>
-            <div>
+            <div className="flex items-center gap-2">
+              <img
+                src="/logo-emblem.png"
+                alt="JanSuno"
+                className="w-8 h-8 object-contain"
+              />
               <h1 className="text-lg font-black text-stone-900 flex items-center gap-2">
                 JanSuno Officer Dashboard
                 <span className="text-xs bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded-full">

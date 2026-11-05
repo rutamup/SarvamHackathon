@@ -119,11 +119,13 @@ export function App() {
   return (
     <div className="min-h-screen bg-[#FAF9F5] flex flex-col justify-between p-4 max-w-lg mx-auto">
       {/* Top Bar */}
-      <header className="flex items-center justify-between pt-2 pb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-700 flex items-center justify-center text-white shadow-sm font-black text-xl">
-            ज
-          </div>
+      <header className="flex items-center justify-between pt-2 pb-3">
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/logo-emblem.png"
+            alt="JanSuno Emblem"
+            className="w-10 h-10 object-contain drop-shadow-2xs rounded-xl"
+          />
           <div>
             <h1 className="text-xl font-black text-stone-900 tracking-tight leading-none">
               {t.appName}
@@ -186,12 +188,19 @@ export function App() {
 
       {/* Main Hero & Big Options */}
       <main className="my-auto py-3 space-y-3.5">
-        {/* Banner */}
-        <div className="text-center mb-4">
-          <h2 className="text-3xl font-black text-stone-900 tracking-tight leading-snug">
+        {/* Banner with Official Logo */}
+        <div className="text-center mb-3">
+          <div className="flex justify-center mb-2.5">
+            <img
+              src="/logo.png"
+              alt="JanSuno - Your Voice. A Better City."
+              className="h-28 w-auto object-contain drop-shadow-xs"
+            />
+          </div>
+          <h2 className="text-2xl font-black text-stone-900 tracking-tight leading-snug">
             {t.tagline}
           </h2>
-          <p className="text-stone-600 text-sm mt-1">
+          <p className="text-stone-600 text-xs mt-1">
             {t.subtagline}
           </p>
         </div>
