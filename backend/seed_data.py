@@ -399,17 +399,10 @@ SEED_RECORDS = [
 ]
 
 def seed_database():
+    """Seed 30 realistic Pune complaints and clusters idempotently within a single transaction."""
     init_db()
     conn = get_db()
-    cursor = conn.cursor()
 
-    # Clear existing demo records
-    cursor.execute("DELETE FROM status_history")
-    cursor.execute("DELETE FROM complaints")
-    cursor.execute("DELETE FROM issue_clusters")
-    cursor.execute("DELETE FROM departments")
-
-    # Seed Departments
     departments_data = [
         ("Water Supply Department", "Water Supply Department", "पाणी पुरवठा विभाग", "जल आपूर्ति विभाग", "water@pmc.gov.in", "020-25501001"),
         ("Road & Maintenance Department", "Road & Maintenance Department", "रस्ते व देखभाल विभाग", "सड़क एवं रखरखाव विभाग", "roads@pmc.gov.in", "020-25501002"),
@@ -420,12 +413,13 @@ def seed_database():
         ("Traffic & Transport Division", "Traffic & Transport Division", "वाहतूक व वाहतूक नियंत्रण", "यातायात एवं परिवहन प्रभाग", "traffic@pmc.gov.in", "020-25501007"),
         ("General Administration", "General Administration", "सामान्य प्रशासन विभाग", "सामान्य प्रशासन", "admin@pmc.gov.in", "020-25501000")
     ]
-    cursor.executemany("INSERT INTO departments VALUES (?, ?, ?, ?, ?, ?)", departments_data)
 
-    # First, let's cluster the complaints deterministically by (locality, category)
     cluster_map = {}
+    assigned_cluster_ids = set()
     now = datetime.now()
 
+    # Pre-compute clusters deterministically with guaranteed unique cluster IDs (no collisions)
+    complaint_records = []
     for idx, rec in enumerate(SEED_RECORDS, 1):
         complaint_id = f"JS-PUNE-{1000 + idx}"
         locality = rec["locality"]
@@ -434,7 +428,6 @@ def seed_database():
         cluster_key = f"{locality.lower()}_{category.lower().replace(' ', '_').replace('&', 'and')}"
 
         centroid = PUNE_LOCALITIES.get(locality, {"lat": 18.5204, "lng": 73.8567})
-        # Add slight realistic jitter (+/- 100-300m) around centroid
         lat = centroid["lat"] + random.uniform(-0.003, 0.003)
         lng = centroid["lng"] + random.uniform(-0.003, 0.003)
 
@@ -442,7 +435,14 @@ def seed_database():
         created_time = (now - timedelta(days=created_days_ago, hours=random.randint(1, 12))).strftime("%Y-%m-%d %H:%M:%S")
 
         if cluster_key not in cluster_map:
-            cluster_id = f"CLU-{locality[:3].upper()}-{random.randint(100, 999)}"
+            # Deterministic, unique cluster ID (prevents random collision UNIQUE constraint failures)
+            cluster_num = len(cluster_map) + 1
+            cluster_id = f"CLU-{locality[:3].upper()}-{cluster_num:03d}"
+            while cluster_id in assigned_cluster_ids:
+                cluster_num += 1
+                cluster_id = f"CLU-{locality[:3].upper()}-{cluster_num:03d}"
+            assigned_cluster_ids.add(cluster_id)
+
             cluster_map[cluster_key] = {
                 "id": cluster_id,
                 "locality": locality,
@@ -459,94 +459,131 @@ def seed_database():
 
         cluster = cluster_map[cluster_key]
         cluster["count"] += 1
-        # If any complaint has higher priority, escalate cluster priority
         if rec["urgency"] == "critical":
             cluster["priority"] = "critical"
         elif rec["urgency"] == "high" and cluster["priority"] != "critical":
             cluster["priority"] = "high"
 
-        # Insert Complaint
-        cursor.execute("""
-        INSERT INTO complaints (
-            id, cluster_id, original_text, language_code, translated_text, summary,
-            category, department, urgency, urgency_reason, suggested_action,
-            normalised_locality, area_landmark, issue_duration, latitude, longitude,
-            photo_url, citizen_name, status, is_demo, is_mock_ai, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            complaint_id,
-            cluster["id"],
-            rec["text"],
-            rec["lang"],
-            rec["summary"],
-            rec["summary"],
-            category,
-            dept,
-            rec["urgency"],
-            f"Verified issue impacting public safety in {locality}.",
-            f"Municipal field inspection team to visit {rec['landmark']} promptly.",
-            locality,
-            rec["landmark"],
-            rec["duration"],
-            lat,
-            lng,
-            None,
-            "Concerned Resident",
-            rec["status"],
-            1, # is_demo
-            0, # not mock_ai, verified seed
-            created_time,
-            created_time
-        ))
+        complaint_records.append({
+            "id": complaint_id,
+            "cluster_id": cluster["id"],
+            "rec": rec,
+            "locality": locality,
+            "category": category,
+            "dept": dept,
+            "lat": lat,
+            "lng": lng,
+            "created_time": created_time,
+            "created_days_ago": created_days_ago
+        })
 
-        # Insert initial status history
-        cursor.execute("""
-        INSERT INTO status_history (complaint_id, old_status, new_status, changed_by, officer_note, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            complaint_id,
-            None,
-            "Submitted",
-            "System",
-            "Complaint recorded and clustered automatically.",
-            created_time
-        ))
+    try:
+        # Run entire seed in ONE single transaction - rolls back if any step fails
+        with conn:
+            cursor = conn.cursor()
 
-        if rec["status"] != "Submitted":
-            cursor.execute("""
-            INSERT INTO status_history (complaint_id, old_status, new_status, changed_by, officer_note, timestamp)
+            # 1. Seed Departments (Idempotent: INSERT OR IGNORE)
+            cursor.executemany("""
+            INSERT OR IGNORE INTO departments (id, name_en, name_mr, name_hi, contact_email, contact_phone)
             VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                complaint_id,
-                "Submitted",
-                rec["status"],
-                "Ward Officer",
-                f"Status updated to {rec['status']} for active resolution.",
-                (now - timedelta(days=max(0, created_days_ago - 1))).strftime("%Y-%m-%d %H:%M:%S")
-            ))
+            """, departments_data)
 
-    # Insert Clusters into DB
-    for clu in cluster_map.values():
-        cursor.execute("""
-        INSERT INTO issue_clusters (id, normalised_locality, category, title, description, priority, department, report_count, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            clu["id"],
-            clu["locality"],
-            clu["category"],
-            clu["title"],
-            clu["description"],
-            clu["priority"],
-            clu["department"],
-            clu["count"],
-            clu["status"],
-            clu["created_at"],
-            clu["updated_at"]
-        ))
+            # 2. Seed Clusters FIRST (Idempotent: INSERT OR IGNORE, satisfies foreign key for complaints)
+            for clu in cluster_map.values():
+                cursor.execute("""
+                INSERT OR IGNORE INTO issue_clusters (
+                    id, normalised_locality, category, title, description,
+                    priority, department, report_count, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    clu["id"],
+                    clu["locality"],
+                    clu["category"],
+                    clu["title"],
+                    clu["description"],
+                    clu["priority"],
+                    clu["department"],
+                    clu["count"],
+                    clu["status"],
+                    clu["created_at"],
+                    clu["updated_at"]
+                ))
 
-    conn.commit()
-    conn.close()
-    print(f"Seeded 30 realistic Pune complaints across {len(cluster_map)} clusters.")
+            # 3. Seed Complaints (Idempotent: INSERT OR IGNORE)
+            for item in complaint_records:
+                rec = item["rec"]
+                cursor.execute("""
+                INSERT OR IGNORE INTO complaints (
+                    id, cluster_id, original_text, language_code, translated_text, summary,
+                    category, department, urgency, urgency_reason, suggested_action,
+                    normalised_locality, area_landmark, issue_duration, latitude, longitude,
+                    photo_url, citizen_name, status, is_demo, is_mock_ai, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    item["id"],
+                    item["cluster_id"],
+                    rec["text"],
+                    rec["lang"],
+                    rec["summary"],
+                    rec["summary"],
+                    item["category"],
+                    item["dept"],
+                    rec["urgency"],
+                    f"Verified issue impacting public safety in {item['locality']}.",
+                    f"Municipal field inspection team to visit {rec['landmark']} promptly.",
+                    item["locality"],
+                    rec["landmark"],
+                    rec["duration"],
+                    item["lat"],
+                    item["lng"],
+                    None,
+                    "Concerned Resident",
+                    rec["status"],
+                    1, # is_demo
+                    0, # not mock_ai, verified seed
+                    item["created_time"],
+                    item["created_time"]
+                ))
+
+                # 4. Status History (Check existence by id / complaint_id, INSERT OR IGNORE)
+                cursor.execute(
+                    "SELECT 1 FROM status_history WHERE complaint_id = ? AND new_status = ?",
+                    (item["id"], "Submitted")
+                )
+                if not cursor.fetchone():
+                    cursor.execute("""
+                    INSERT OR IGNORE INTO status_history (complaint_id, old_status, new_status, changed_by, officer_note, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        item["id"],
+                        None,
+                        "Submitted",
+                        "System",
+                        "Complaint recorded and clustered automatically.",
+                        item["created_time"]
+                    ))
+
+                if rec["status"] != "Submitted":
+                    cursor.execute(
+                        "SELECT 1 FROM status_history WHERE complaint_id = ? AND new_status = ?",
+                        (item["id"], rec["status"])
+                    )
+                    if not cursor.fetchone():
+                        cursor.execute("""
+                        INSERT OR IGNORE INTO status_history (complaint_id, old_status, new_status, changed_by, officer_note, timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, (
+                            item["id"],
+                            "Submitted",
+                            rec["status"],
+                            "Ward Officer",
+                            f"Status updated to {rec['status']} for active resolution.",
+                            (now - timedelta(days=max(0, item["created_days_ago"] - 1))).strftime("%Y-%m-%d %H:%M:%S")
+                        ))
+
+        print(f"Seeded 30 realistic Pune complaints across {len(cluster_map)} clusters.")
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     seed_database()

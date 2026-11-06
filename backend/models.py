@@ -21,7 +21,7 @@ VALID_DEPARTMENTS = [
     "Drainage & Sewage Board",
     "Electrical Department",
     "Public Health Department",
-    "Traffic & Transport Division",
+    "Traffic & Transport Division", 
     "General Administration"
 ]
 

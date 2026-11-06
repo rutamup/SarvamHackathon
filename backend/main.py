@@ -59,17 +59,28 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()
-    # Auto-seed demo data if database is empty
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM complaints")
-    complaints_count = cursor.fetchone()[0]
-    conn.close()
-    
-    if complaints_count == 0:
-        print("Database is empty on startup. Automatically seeding realistic Pune demo data...")
-        from seed_data import seed_database
-        seed_database()
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM complaints")
+        c_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM issue_clusters")
+        clu_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM departments")
+        dept_count = cursor.fetchone()[0]
+        conn.close()
+
+        # Decide "empty" by checking that complaints, issue_clusters and departments are all empty
+        if c_count == 0 and clu_count == 0 and dept_count == 0:
+            print("Database is empty on startup. Automatically seeding realistic Pune demo data...")
+            from seed_data import seed_database
+            seed_database()
+        else:
+            print(f"Database already initialized (complaints={c_count}, clusters={clu_count}, departments={dept_count}). Skipping automatic seed.")
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn.error").error(f"Startup database seeding encountered an error (server continuing): {e}", exc_info=True)
+        print(f"WARNING: Startup database seeding failed (non-fatal): {e}")
 
 @app.get("/api/health")
 def health_check():
